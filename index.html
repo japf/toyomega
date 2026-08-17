@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Simulateur Corolla → Mégane électrique</title>
+<style>
+  :root {
+    --paper:#f4f3ed; --surface:#fffefa; --ink:#18231e; --muted:#66736c;
+    --line:#cdd6d0; --forest:#176654; --forest-dark:#104a3d; --green:#d8eadf;
+    --blue:#dbe8ef; --amber:#c98620; --amber-soft:#f6e8ca; --coral:#b95342;
+    --red-soft:#f2dcd6; --shadow:0 12px 30px rgba(24,35,30,.08);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;color:var(--ink);background-color:var(--paper);background-image:linear-gradient(rgba(23,102,84,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(23,102,84,.035) 1px,transparent 1px);background-size:30px 30px;font-family:"Avenir Next","Trebuchet MS",sans-serif;line-height:1.45}
+  button,input{font:inherit}
+  button{cursor:pointer}
+  h1,h2,h3{font-family:Georgia,"Times New Roman",serif;font-weight:500;letter-spacing:0}
+  .app-header{max-width:1460px;margin:0 auto;padding:30px 30px 22px;display:flex;align-items:end;justify-content:space-between;gap:24px;border-bottom:1px solid var(--line)}
+  .eyebrow{color:var(--forest);font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;margin-bottom:7px}
+  h1{font-size:clamp(31px,4vw,49px);line-height:1.02;margin:0}
+  .header-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+  .button{border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:9px 13px;border-radius:5px;font-weight:750}
+  .button:hover{border-color:var(--forest)}
+  .button.primary{background:var(--forest);border-color:var(--forest);color:white}
+  .app{max-width:1460px;margin:0 auto;padding:28px 30px 70px}
+  .workspace{display:grid;grid-template-columns:minmax(330px,390px) minmax(0,1fr);gap:30px;align-items:start}
+  .assumptions{position:sticky;top:16px;max-height:calc(100vh - 32px);overflow:auto;background:rgba(255,254,250,.94);border:1px solid var(--line);border-radius:7px;box-shadow:var(--shadow)}
+  .assumptions-head{padding:20px 20px 14px;border-bottom:1px solid var(--line)}
+  .assumptions h2{font-size:25px;margin:0}
+  .assumptions-head p{font-size:13px;color:var(--muted);margin:7px 0 0}
+  .input-group{padding:17px 20px;border-bottom:1px solid var(--line)}
+  .input-group h3{font-family:"Avenir Next","Trebuchet MS",sans-serif;font-size:12px;text-transform:uppercase;font-weight:850;color:var(--forest);margin:0 0 13px;letter-spacing:.05em}
+  .field{margin-bottom:13px}
+  .field:last-child{margin-bottom:0}
+  .field-top{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:5px}
+  label{font-size:13px;font-weight:700}
+  .hint{font-size:10px;color:var(--muted);text-align:right}
+  .stepper{display:grid;grid-template-columns:34px minmax(0,1fr) 34px;height:38px}
+  .stepper button{border:1px solid var(--line);background:#f1f4f1;color:var(--forest);font-size:19px;line-height:1}
+  .stepper button:first-child{border-radius:4px 0 0 4px}
+  .stepper button:last-child{border-radius:0 4px 4px 0}
+  .stepper input{min-width:0;width:100%;border:1px solid var(--line);border-left:0;border-right:0;background:white;text-align:right;padding:7px 9px;font-variant-numeric:tabular-nums;color:var(--ink)}
+  .stepper input:focus{outline:2px solid rgba(23,102,84,.25);outline-offset:-2px}
+  .stepper input:invalid{background:var(--red-soft)}
+  .shortcuts{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px}
+  .shortcuts button{border:1px solid var(--line);background:white;border-radius:3px;padding:4px 7px;font-size:11px;color:var(--muted)}
+  .shortcuts button:hover{color:var(--forest);border-color:var(--forest)}
+  details.advanced{border-bottom:1px solid var(--line)}
+  details.advanced>summary,details.method>summary{list-style:none;cursor:pointer;font-weight:800}
+  details.advanced>summary::-webkit-details-marker,details.method>summary::-webkit-details-marker{display:none}
+  details.advanced>summary{padding:16px 20px;color:var(--forest);font-size:13px}
+  details.advanced>summary::after,details.method>summary::after{content:"+";float:right;font-size:18px;line-height:1}
+  details[open]>summary::after{content:"−"}
+  .advanced .input-group{border-top:1px solid var(--line);border-bottom:0}
+  .resale-warning{display:none;margin-top:9px;padding:9px 10px;background:var(--amber-soft);border-left:3px solid var(--amber);font-size:11px;color:#6c4b16}
+  .resale-warning.visible{display:block}
+  .results{min-width:0}
+  .decision{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:22px;align-items:center;padding:22px 24px;background:var(--green);border-left:5px solid var(--forest);box-shadow:var(--shadow)}
+  .decision.incertain{background:var(--amber-soft);border-color:var(--amber)}
+  .decision.defavorable{background:var(--red-soft);border-color:var(--coral)}
+  .decision h2{font-size:28px;margin:0}
+  .decision p{margin:6px 0 0;color:#44544c;font-size:14px;max-width:800px}
+  .decision-value{text-align:right;white-space:nowrap}
+  .decision-value strong{display:block;font-family:Georgia,serif;font-size:34px;font-weight:500}
+  .decision-value span{font-size:11px;color:var(--muted);text-transform:uppercase;font-weight:800}
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);margin:24px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+  .kpi{padding:18px 16px 17px 0;min-width:0}
+  .kpi+.kpi{border-left:1px solid var(--line);padding-left:16px}
+  .kpi small{display:block;color:var(--muted);font-size:10px;text-transform:uppercase;font-weight:850;letter-spacing:.04em}
+  .kpi strong{display:block;font-family:Georgia,serif;font-size:27px;font-weight:500;margin-top:5px;white-space:nowrap}
+  .kpi span{display:block;color:var(--muted);font-size:11px;margin-top:3px}
+  .results-grid{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(250px,.75fr);gap:18px}
+  .panel{background:rgba(255,254,250,.9);border:1px solid var(--line);border-radius:7px;padding:20px;box-shadow:var(--shadow)}
+  .panel h2{font-size:25px;margin:0}
+  .panel-intro{font-size:12px;color:var(--muted);margin:5px 0 16px}
+  .chart-wrap{width:100%;aspect-ratio:1.9;min-height:280px}
+  .chart-wrap svg{display:block;width:100%;height:100%;overflow:visible}
+  .chart-grid{stroke:#dbe1dd;stroke-width:1}
+  .chart-axis{fill:var(--muted);font:10px "Avenir Next","Trebuchet MS",sans-serif}
+  .chart-toyota{fill:none;stroke:var(--coral);stroke-width:3}
+  .chart-megane{fill:none;stroke:var(--forest);stroke-width:3}
+  .chart-payback{stroke:var(--amber);stroke-width:2;stroke-dasharray:5 5}
+  .chart-legend{display:flex;gap:18px;flex-wrap:wrap;color:var(--muted);font-size:11px;margin-top:5px}
+  .chart-legend i{display:inline-block;width:18px;height:3px;vertical-align:3px;margin-right:5px}
+  .breakdown{margin:0;padding:0;list-style:none}
+  .breakdown li{display:flex;justify-content:space-between;gap:15px;padding:10px 0;border-bottom:1px solid var(--line);font-size:12px}
+  .breakdown li span{color:var(--muted)}
+  .breakdown li strong{text-align:right}
+  .breakdown li.total{font-size:14px;font-weight:800;border-bottom:0;padding-top:14px}
+  .electric-detail{margin-top:17px;padding:13px;background:var(--blue);font-size:11px;color:#365467}
+  .section{padding-top:42px}
+  .section-head{display:flex;justify-content:space-between;align-items:end;gap:24px;margin-bottom:16px}
+  .section-head h2{font-size:30px;margin:0}
+  .section-head p{max-width:560px;color:var(--muted);font-size:13px;margin:0}
+  .matrix-toolbar{display:flex;justify-content:space-between;gap:15px;align-items:center;margin-bottom:12px}
+  .segments{display:grid;grid-template-columns:repeat(3,auto);gap:4px}
+  .segments button{border:1px solid var(--line);background:var(--surface);padding:8px 10px;border-radius:4px;font-size:12px;font-weight:750}
+  .segments button[aria-pressed="true"]{background:var(--forest);border-color:var(--forest);color:white}
+  .matrix-note{font-size:11px;color:var(--muted)}
+  .matrix-wrap{overflow:auto;max-height:650px;background:var(--surface);border:1px solid var(--line);border-radius:6px;box-shadow:var(--shadow)}
+  table{border-collapse:separate;border-spacing:0;width:100%}
+  .matrix{min-width:1220px;font-size:11px}
+  .matrix th,.matrix td{padding:8px 7px;text-align:center;border-right:1px solid white;border-bottom:1px solid white;white-space:nowrap}
+  .matrix thead th{position:sticky;top:0;z-index:3;background:var(--ink);color:white;font-weight:750}
+  .matrix thead th.current{background:var(--amber);color:#30200c}
+  .matrix tbody th{position:sticky;left:0;z-index:2;background:#e9eeeb;text-align:right;min-width:92px}
+  .matrix tbody th.current{background:var(--amber-soft);color:#5f3c08}
+  .matrix td.good{background:#cfe7db;color:#174a3e}
+  .matrix td.steady{background:var(--blue);color:#244c68}
+  .matrix td.warn{background:var(--amber-soft);color:#754d0f}
+  .matrix td.bad{background:var(--red-soft);color:#7b3023}
+  .matrix td.active{outline:3px solid var(--amber);outline-offset:-3px;font-weight:900}
+  .matrix td strong{display:block}
+  .matrix td small{display:block;font-size:9px;opacity:.75;margin-top:2px}
+  .matrix-legend{display:flex;gap:15px;flex-wrap:wrap;color:var(--muted);font-size:11px;margin-top:10px}
+  .matrix-legend i{display:inline-block;width:11px;height:11px;border-radius:2px;vertical-align:-1px;margin-right:4px}
+  .method{margin-top:42px;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+  details.method>summary{padding:17px 2px;font-size:14px;color:var(--forest)}
+  .method-body{padding:0 0 22px;display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+  .formula{padding:15px;border-left:3px solid var(--forest);background:rgba(255,254,250,.68);font-size:12px}
+  .formula strong{display:block;margin-bottom:5px}
+  .formula p{color:var(--muted);margin:0}
+  .toast{position:fixed;right:24px;bottom:24px;background:var(--ink);color:white;padding:11px 15px;border-radius:5px;font-size:12px;box-shadow:var(--shadow);opacity:0;transform:translateY(8px);pointer-events:none;transition:.18s ease}
+  .toast.visible{opacity:1;transform:none}
+  @media(max-width:1050px){.workspace{grid-template-columns:330px minmax(0,1fr)}.kpis{grid-template-columns:repeat(2,1fr)}.kpi:nth-child(3){border-left:0;padding-left:0;border-top:1px solid var(--line)}.kpi:nth-child(4){border-top:1px solid var(--line)}.results-grid{grid-template-columns:1fr}.chart-wrap{aspect-ratio:1.7}.method-body{grid-template-columns:1fr}}
+  @media(max-width:760px){.app-header{align-items:start;padding:22px 18px 18px}.header-actions{justify-content:flex-start}.app{padding:18px 18px 50px}.workspace{grid-template-columns:1fr}.assumptions{position:static;max-height:none}.decision{grid-template-columns:1fr}.decision-value{text-align:left}.section-head,.matrix-toolbar{display:block}.section-head p,.segments{margin-top:10px}.segments{grid-template-columns:1fr}.chart-wrap{min-height:250px}.kpis{grid-template-columns:1fr}.kpi,.kpi+.kpi,.kpi:nth-child(3){border-left:0;border-top:1px solid var(--line);padding-left:0}.app-header{display:block}.header-actions{margin-top:16px}}
+</style>
+</head>
+<body>
+<header class="app-header">
+  <div><div class="eyebrow">Décision Toyota Corolla → Mégane EV60</div><h1>Simulateur de changement</h1></div>
+  <div class="header-actions"><button class="button" id="resetButton" type="button">Réinitialiser</button><button class="button primary" id="copyButton" type="button">Copier le résumé</button></div>
+</header>
+
+<main class="app">
+  <div class="workspace">
+    <aside class="assumptions" aria-label="Hypothèses éditables">
+      <div class="assumptions-head"><div class="eyebrow">Hypothèses</div><h2>Ajuster le scénario</h2><p>Chaque modification recalcule immédiatement toute la page et reste mémorisée sur cet ordinateur.</p></div>
+      <div class="input-group" id="purchaseInputs"><h3>Achat et usage</h3></div>
+      <div class="input-group" id="annualInputs"><h3>Coûts annuels</h3></div>
+      <div class="input-group" id="switchingInputs"><h3>Coûts du changement</h3></div>
+      <details class="advanced">
+        <summary>Hypothèses avancées</summary>
+        <div class="input-group" id="electricityInputs"><h3>Recharge électrique</h3></div>
+        <div class="input-group" id="resaleInputs"><h3>Revente à l’horizon</h3><div class="resale-warning" id="resaleWarning"></div></div>
+        <div class="input-group" id="capitalInputs"><h3>Coût du capital</h3></div>
+      </details>
+    </aside>
+
+    <div class="results">
+      <section class="decision" id="decision" aria-live="polite">
+        <div><div class="eyebrow">Résultat du scénario</div><h2 id="decisionTitle"></h2><p id="decisionText"></p></div>
+        <div class="decision-value"><strong id="decisionResult"></strong><span id="decisionHorizon"></span></div>
+      </section>
+
+      <section class="kpis" aria-label="Indicateurs principaux">
+        <div class="kpi"><small>Décaissement initial</small><strong id="initialOutlay"></strong><span id="switchingCostsLabel"></span></div>
+        <div class="kpi"><small>Économie annuelle</small><strong id="annualSavings"></strong><span id="annualCostsLabel"></span></div>
+        <div class="kpi"><small>Rentabilité hors revente</small><strong id="payback"></strong><span id="paybackLabel"></span></div>
+        <div class="kpi"><small>Trésorerie avant revente</small><strong id="cashBalance"></strong><span id="resaleGapLabel"></span></div>
+      </section>
+
+      <div class="results-grid">
+        <section class="panel">
+          <h2>Projection cumulée</h2>
+          <p class="panel-intro">Coût du changement et coûts d’usage cumulés, avant les reventes finales.</p>
+          <div class="chart-wrap" id="chart"></div>
+          <div class="chart-legend"><span><i style="background:var(--coral)"></i>Garder la Toyota</span><span><i style="background:var(--forest)"></i>Passer à la Mégane</span><span><i style="background:var(--amber)"></i>Point de rentabilité</span></div>
+        </section>
+        <aside class="panel">
+          <h2>Coûts annuels</h2>
+          <p class="panel-intro">Détail du scénario courant en euros 2026 constants.</p>
+          <ul class="breakdown" id="breakdown"></ul>
+          <div class="electric-detail" id="electricDetail"></div>
+        </aside>
+      </div>
+
+      <section class="section">
+        <div class="section-head"><div><div class="eyebrow">Vue d’ensemble</div><h2>Prix Mégane × prix essence</h2></div><p>Les autres hypothèses restent celles saisies à gauche. La cellule encadrée correspond au couple de prix le plus proche du scénario courant.</p></div>
+        <div class="matrix-toolbar"><div class="matrix-note" id="matrixContext"></div><div class="segments" id="matrixViews"><button data-view="full" aria-pressed="true">Résultat complet</button><button data-view="cash" aria-pressed="false">Avant revente</button><button data-view="payback" aria-pressed="false">Délai</button></div></div>
+        <div class="matrix-wrap"><table class="matrix" id="matrix"></table></div>
+        <div class="matrix-legend" id="matrixLegend"></div>
+      </section>
+
+      <details class="method">
+        <summary>Méthode de calcul</summary>
+        <div class="method-body">
+          <div class="formula"><strong>Électricité</strong><p>kWh publics × tarif public + max(0, kWh domicile − solaire gratuit) × tarif marginal domicile.</p></div>
+          <div class="formula"><strong>Rentabilité</strong><p>Le décaissement initial est comparé aux économies annuelles cumulées. Le taux de capital s’applique au décaissement et à chaque économie annuelle.</p></div>
+          <div class="formula"><strong>Résultat complet</strong><p>Trésorerie avant revente + valeur future de la Mégane − valeur future de la Toyota. Tous les montants sont en euros 2026 constants.</p></div>
+        </div>
+      </details>
+    </div>
+  </div>
+</main>
+<div class="toast" id="toast" role="status"></div>
+
+<script src="./megane-calculator.js"></script>
+<script>
+(function startApp() {
+  "use strict";
+
+  const calculator = window.MeganeCalculator;
+  const STORAGE_KEY = "simulateur-megane-v1";
+  const euro = value => `${Math.round(value).toLocaleString("fr-FR")} €`;
+  const signedEuro = value => `${value > 0 ? "+" : value < 0 ? "−" : ""}${euro(Math.abs(value))}`;
+  const decimal = (value, digits = 1) => value.toLocaleString("fr-FR", { minimumFractionDigits: digits, maximumFractionDigits: digits });
+  const priceSteps = Array.from({ length: 17 }, (_, index) => 20000 + index * 1000);
+  const fuelSteps = Array.from({ length: 16 }, (_, index) => 1.5 + index * 0.1);
+  let values = { ...calculator.DEFAULTS };
+  let resaleHorizon = values.horizon;
+  let matrixView = "full";
+
+  const fields = [
+    { group:"purchaseInputs", key:"meganePrice", label:"Prix de la Mégane", unit:"€", step:500, min:0 },
+    { group:"purchaseInputs", key:"toyotaSalePrice", label:"Vente de la Toyota", unit:"€", step:500, min:0, shortcuts:[17000,19000] },
+    { group:"purchaseInputs", key:"annualKm", label:"Kilométrage annuel", unit:"km", step:1000, min:0 },
+    { group:"purchaseInputs", key:"fuelPrice", label:"Prix de l’essence", unit:"€/L", step:0.01, min:0, digits:3, shortcuts:[1.9,2.019,2.5] },
+    { group:"purchaseInputs", key:"horizon", label:"Horizon", unit:"ans", step:1, min:1, max:12, shortcuts:[5,7,10] },
+    { group:"annualInputs", key:"toyotaConsumption", label:"Consommation Toyota", unit:"L/100", step:0.1, min:0, digits:1 },
+    { group:"annualInputs", key:"meganeConsumption", label:"Consommation Mégane", unit:"kWh/100", step:0.5, min:0, digits:1 },
+    { group:"annualInputs", key:"toyotaInsurance", label:"Assurance Toyota", unit:"€/an", step:10, min:0 },
+    { group:"annualInputs", key:"meganeInsurance", label:"Assurance Mégane", unit:"€/an", step:10, min:0 },
+    { group:"annualInputs", key:"toyotaMaintenance", label:"Entretien Toyota", unit:"€/an", step:50, min:0 },
+    { group:"annualInputs", key:"meganeMaintenance", label:"Entretien Mégane", unit:"€/an", step:50, min:0 },
+    { group:"switchingInputs", key:"chargingInstallation", label:"Prise / borne", unit:"€", step:50, min:0 },
+    { group:"switchingInputs", key:"meganeWinterTires", label:"Pneus hiver Mégane", unit:"€", step:50, min:0 },
+    { group:"switchingInputs", key:"toyotaWinterTiresResale", label:"Revente pneus Toyota", unit:"€ déduits", step:20, min:0 },
+    { group:"switchingInputs", key:"towHitch", label:"Attelage", unit:"€", step:100, min:0 },
+    { group:"switchingInputs", key:"dealerFees", label:"Livraison / garage", unit:"€", step:50, min:0 },
+    { group:"switchingInputs", key:"registration", label:"Immatriculation", unit:"€", step:50, min:0 },
+    { group:"electricityInputs", key:"publicChargingKm", label:"Kilomètres en recharge publique", unit:"km/an", step:250, min:0 },
+    { group:"electricityInputs", key:"publicElectricityPrice", label:"Tarif recharge publique", unit:"€/kWh", step:0.01, min:0, digits:2 },
+    { group:"electricityInputs", key:"homeElectricityPrice", label:"Tarif marginal domicile", unit:"€/kWh", step:0.001, min:0, digits:5 },
+    { group:"electricityInputs", key:"freeSolarKwh", label:"Solaire gratuit disponible", unit:"kWh/an", step:50, min:0 },
+    { group:"resaleInputs", key:"toyotaResaleValue", label:"Valeur Toyota à l’horizon", unit:"€", step:500, min:0 },
+    { group:"resaleInputs", key:"meganeResaleValue", label:"Valeur Mégane à l’horizon", unit:"€", step:500, min:0 },
+    { group:"capitalInputs", key:"capitalRate", label:"Rendement alternatif", unit:"%/an", step:0.5, min:0, digits:1, factor:0.01 },
+  ];
+
+  function loadState() {
+    try {
+      const stored = JSON.parse(localStorage.getItem(STORAGE_KEY));
+      if (stored && stored.values) values = calculator.assumptionsWithDefaults(stored.values);
+      if (stored && Number.isFinite(stored.resaleHorizon)) resaleHorizon = stored.resaleHorizon;
+    } catch (_) {}
+  }
+
+  function saveState() {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ values, resaleHorizon })); } catch (_) {}
+  }
+
+  function displayValue(field) {
+    const raw = values[field.key] / (field.factor || 1);
+    return field.digits === undefined ? String(raw) : raw.toFixed(field.digits);
+  }
+
+  function createField(field) {
+    const wrapper = document.createElement("div");
+    wrapper.className = "field";
+    wrapper.innerHTML = `<div class="field-top"><label for="${field.key}">${field.label}</label><span class="hint">${field.unit}</span></div><div class="stepper"><button type="button" data-step="down" aria-label="Diminuer ${field.label}">−</button><input id="${field.key}" data-key="${field.key}" type="number" value="${displayValue(field)}" step="any" min="${field.min}" ${field.max ? `max="${field.max}"` : ""}><button type="button" data-step="up" aria-label="Augmenter ${field.label}">+</button></div>`;
+    const input = wrapper.querySelector("input");
+    wrapper.querySelectorAll("[data-step]").forEach(button => button.addEventListener("click", () => {
+      const direction = button.dataset.step === "up" ? 1 : -1;
+      const next = Number(input.value) + direction * field.step;
+      input.value = Math.min(field.max ?? Infinity, Math.max(field.min, Number(next.toFixed(10))));
+      input.dispatchEvent(new Event("input", { bubbles:true }));
+    }));
+    if (field.shortcuts) {
+      const shortcuts = document.createElement("div");
+      shortcuts.className = "shortcuts";
+      field.shortcuts.forEach(shortcut => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.textContent = field.key === "fuelPrice" ? `${decimal(shortcut, shortcut === 2.019 ? 3 : 2)} €` : field.key === "horizon" ? `${shortcut} ans` : euro(shortcut);
+        button.addEventListener("click", () => {
+          input.value = shortcut / (field.factor || 1);
+          input.dispatchEvent(new Event("input", { bubbles:true }));
+        });
+        shortcuts.appendChild(button);
+      });
+      wrapper.appendChild(shortcuts);
+    }
+    document.getElementById(field.group).appendChild(wrapper);
+  }
+
+  function readInputs(changedKey) {
+    const next = { ...values };
+    for (const field of fields) {
+      const input = document.getElementById(field.key);
+      if (!input.checkValidity() || input.value === "") return;
+      next[field.key] = Number(input.value) * (field.factor || 1);
+    }
+    if (next.publicChargingKm > next.annualKm) {
+      document.getElementById("publicChargingKm").setCustomValidity("Ne peut pas dépasser le kilométrage annuel");
+      return;
+    }
+    document.getElementById("publicChargingKm").setCustomValidity("");
+    values = next;
+    if (changedKey === "toyotaResaleValue" || changedKey === "meganeResaleValue") resaleHorizon = values.horizon;
+    saveState();
+    render();
+  }
+
+  function renderDecision(result) {
+    const decision = document.getElementById("decision");
+    decision.className = `decision ${result.state}`;
+    const content = {
+      favorable:["Scénario favorable", `Les économies remboursent le changement avant ${values.horizon} ans, même sans compter la revente.`],
+      incertain:["Scénario sensible à la revente", `La trésorerie n’est pas récupérée en ${values.horizon} ans ; le bilan devient positif grâce à l’écart de revente supposé.`],
+      defavorable:["Scénario défavorable", `Avec ces hypothèses, la Mégane reste plus coûteuse à ${values.horizon} ans, reventes comprises.`],
+    }[result.state];
+    document.getElementById("decisionTitle").textContent = content[0];
+    document.getElementById("decisionText").textContent = `${content[1]} Point d’équilibre : Mégane à ${euro(result.thresholds.maxMeganePrice)} ou essence à ${decimal(result.thresholds.breakEvenFuelPrice, 2)} €/L.`;
+    document.getElementById("decisionResult").textContent = signedEuro(result.fullResult);
+    document.getElementById("decisionHorizon").textContent = `bilan complet à ${values.horizon} ans`;
+  }
+
+  function renderKpis(result) {
+    document.getElementById("initialOutlay").textContent = euro(result.initialOutlay);
+    document.getElementById("switchingCostsLabel").textContent = `${euro(result.switchingCosts)} de coûts additionnels`;
+    document.getElementById("annualSavings").textContent = `${signedEuro(result.annualSavings)}/an`;
+    document.getElementById("annualCostsLabel").textContent = `Toyota ${euro(result.annualCosts.toyota)} · Mégane ${euro(result.annualCosts.megane)}`;
+    document.getElementById("payback").textContent = Number.isFinite(result.paybackYears) ? `${decimal(result.paybackYears)} ans` : "Jamais";
+    document.getElementById("paybackLabel").textContent = values.capitalRate ? `avec rendement alternatif de ${decimal(values.capitalRate * 100)} %` : "sans valeur de revente";
+    document.getElementById("cashBalance").textContent = signedEuro(result.cashBalance);
+    document.getElementById("resaleGapLabel").textContent = `puis ${signedEuro(values.meganeResaleValue - values.toyotaResaleValue)} d’écart de revente`;
+  }
+
+  function renderBreakdown(result) {
+    const costs = result.annualCosts;
+    document.getElementById("breakdown").innerHTML = `
+      <li><span>Essence Toyota</span><strong>${euro(costs.fuelCost)}</strong></li>
+      <li><span>Assurance + entretien Toyota</span><strong>${euro(values.toyotaInsurance + values.toyotaMaintenance)}</strong></li>
+      <li class="total"><span>Total Toyota</span><strong>${euro(costs.toyota)}</strong></li>
+      <li><span>Électricité Mégane</span><strong>${euro(costs.electricity.totalCost)}</strong></li>
+      <li><span>Assurance + entretien Mégane</span><strong>${euro(values.meganeInsurance + values.meganeMaintenance)}</strong></li>
+      <li class="total"><span>Total Mégane</span><strong>${euro(costs.megane)}</strong></li>`;
+    const electricity = costs.electricity;
+    document.getElementById("electricDetail").innerHTML = `<strong>${Math.round(electricity.totalKwh).toLocaleString("fr-FR")} kWh/an</strong><br>${Math.round(electricity.freeSolarKwh).toLocaleString("fr-FR")} kWh solaires gratuits · ${Math.round(electricity.paidHomeKwh).toLocaleString("fr-FR")} kWh domicile payants · ${Math.round(electricity.publicKwh).toLocaleString("fr-FR")} kWh publics.`;
+  }
+
+  function svgPoint(point, maxYear, maxCost, width, height, margin) {
+    return {
+      x: margin.left + point.year / maxYear * (width - margin.left - margin.right),
+      toyotaY: height - margin.bottom - point.toyotaCost / maxCost * (height - margin.top - margin.bottom),
+      meganeY: height - margin.bottom - point.meganeCost / maxCost * (height - margin.top - margin.bottom),
+    };
+  }
+
+  function renderChart(result) {
+    const width = 760, height = 360, margin = { top:20, right:24, bottom:40, left:64 };
+    const maxCost = Math.max(...result.projection.flatMap(point => [point.toyotaCost, point.meganeCost]), 1) * 1.08;
+    const points = result.projection.map(point => ({ ...point, ...svgPoint(point, values.horizon, maxCost, width, height, margin) }));
+    const path = key => points.map((point,index) => `${index ? "L" : "M"}${point.x.toFixed(1)},${point[key].toFixed(1)}`).join(" ");
+    const grid = [0,.25,.5,.75,1].map(ratio => {
+      const y = height - margin.bottom - ratio * (height - margin.top - margin.bottom);
+      return `<line class="chart-grid" x1="${margin.left}" x2="${width-margin.right}" y1="${y}" y2="${y}"/><text class="chart-axis" x="${margin.left-8}" y="${y+3}" text-anchor="end">${Math.round(maxCost*ratio/1000)} k€</text>`;
+    }).join("");
+    const years = points.map(point => `<text class="chart-axis" x="${point.x}" y="${height-15}" text-anchor="middle">${point.year}</text>`).join("");
+    const paybackX = Number.isFinite(result.paybackYears) && result.paybackYears <= values.horizon ? margin.left + result.paybackYears / values.horizon * (width-margin.left-margin.right) : null;
+    document.getElementById("chart").innerHTML = `<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Projection des coûts cumulés Toyota et Mégane sur ${values.horizon} ans">${grid}<line class="chart-grid" x1="${margin.left}" x2="${margin.left}" y1="${margin.top}" y2="${height-margin.bottom}"/>${years}<text class="chart-axis" x="${width/2}" y="${height-2}" text-anchor="middle">Années</text><path class="chart-toyota" d="${path("toyotaY")}"/><path class="chart-megane" d="${path("meganeY")}"/>${paybackX ? `<line class="chart-payback" x1="${paybackX}" x2="${paybackX}" y1="${margin.top}" y2="${height-margin.bottom}"/><text class="chart-axis" x="${paybackX+5}" y="${margin.top+11}">${decimal(result.paybackYears)} ans</text>` : ""}</svg>`;
+  }
+
+  function matrixCellClass(result) {
+    if (matrixView === "payback") {
+      if (result.paybackYears <= 5) return "good";
+      if (result.paybackYears <= values.horizon) return "steady";
+      if (result.paybackYears <= 10) return "warn";
+      return "bad";
+    }
+    const value = matrixView === "cash" ? result.cashBalance : result.fullResult;
+    if (value >= 2000) return "good";
+    if (value >= 0) return "steady";
+    if (value >= -2000) return "warn";
+    return "bad";
+  }
+
+  function renderMatrix() {
+    const nearestPrice = priceSteps.reduce((best, price) => Math.abs(price-values.meganePrice) < Math.abs(best-values.meganePrice) ? price : best);
+    const nearestFuel = fuelSteps.reduce((best, fuel) => Math.abs(fuel-values.fuelPrice) < Math.abs(best-values.fuelPrice) ? fuel : best);
+    const header = `<thead><tr><th>Prix Mégane</th>${fuelSteps.map(fuel => `<th class="${fuel===nearestFuel?"current":""}">${decimal(fuel,2)} €</th>`).join("")}</tr></thead>`;
+    const body = priceSteps.map(price => {
+      const cells = fuelSteps.map(fuel => {
+        const result = calculator.calculate({ ...values, meganePrice:price, fuelPrice:fuel });
+        const active = price===nearestPrice && fuel===nearestFuel ? " active" : "";
+        if (matrixView === "payback") return `<td class="${matrixCellClass(result)}${active}"><strong>${Number.isFinite(result.paybackYears)?`${decimal(result.paybackYears)} ans`:"jamais"}</strong><small>${euro(result.annualSavings)}/an</small></td>`;
+        const amount = matrixView === "cash" ? result.cashBalance : result.fullResult;
+        return `<td class="${matrixCellClass(result)}${active}"><strong>${signedEuro(amount)}</strong><small>${amount>=0?"avantage Mégane":"avantage Toyota"}</small></td>`;
+      }).join("");
+      return `<tr><th class="${price===nearestPrice?"current":""}">${euro(price)}</th>${cells}</tr>`;
+    }).join("");
+    document.getElementById("matrix").innerHTML = header + `<tbody>${body}</tbody>`;
+    document.getElementById("matrixContext").textContent = `Horizon ${values.horizon} ans · vente Toyota ${euro(values.toyotaSalePrice)} · coûts additionnels ${euro(calculator.switchingCosts(values))}`;
+    document.getElementById("matrixLegend").innerHTML = matrixView === "payback"
+      ? '<span><i style="background:#cfe7db"></i>≤ 5 ans</span><span><i style="background:#dbe8ef"></i>avant l’horizon</span><span><i style="background:#f6e8ca"></i>jusqu’à 10 ans</span><span><i style="background:#f2dcd6"></i>plus de 10 ans</span>'
+      : '<span><i style="background:#cfe7db"></i>gain ≥ 2 000 €</span><span><i style="background:#dbe8ef"></i>gain positif</span><span><i style="background:#f6e8ca"></i>perte < 2 000 €</span><span><i style="background:#f2dcd6"></i>perte ≥ 2 000 €</span>';
+  }
+
+  function renderResaleWarning() {
+    const warning = document.getElementById("resaleWarning");
+    const stale = resaleHorizon !== values.horizon;
+    warning.classList.toggle("visible", stale);
+    warning.textContent = stale ? `Valeurs définies pour ${resaleHorizon} ans : à actualiser pour ${values.horizon} ans.` : "";
+  }
+
+  function render() {
+    try {
+      const result = calculator.calculate(values);
+      renderDecision(result);
+      renderKpis(result);
+      renderBreakdown(result);
+      renderChart(result);
+      renderMatrix();
+      renderResaleWarning();
+    } catch (error) {
+      showToast(error.message);
+    }
+  }
+
+  function summaryText() {
+    const result = calculator.calculate(values);
+    return `Simulation Corolla → Mégane EV60\n\nPrix Mégane : ${euro(values.meganePrice)}\nVente Toyota : ${euro(values.toyotaSalePrice)}\nKilométrage : ${values.annualKm.toLocaleString("fr-FR")} km/an\nEssence : ${decimal(values.fuelPrice,3)} €/L\nHorizon : ${values.horizon} ans\n\nDécaissement initial : ${euro(result.initialOutlay)}\nCoût annuel Toyota : ${euro(result.annualCosts.toyota)}\nCoût annuel Mégane : ${euro(result.annualCosts.megane)}\nÉconomie annuelle : ${signedEuro(result.annualSavings)}\nRentabilité hors revente : ${Number.isFinite(result.paybackYears)?`${decimal(result.paybackYears)} ans`:"jamais"}\nTrésorerie avant revente : ${signedEuro(result.cashBalance)}\nRésultat complet : ${signedEuro(result.fullResult)}\n\nValeurs de revente : Toyota ${euro(values.toyotaResaleValue)}, Mégane ${euro(values.meganeResaleValue)}. Euros 2026 constants.`;
+  }
+
+  function showToast(message) {
+    const toast = document.getElementById("toast");
+    toast.textContent = message;
+    toast.classList.add("visible");
+    clearTimeout(showToast.timeout);
+    showToast.timeout = setTimeout(() => toast.classList.remove("visible"), 2200);
+  }
+
+  async function copySummary() {
+    const text = summaryText();
+    try {
+      if (navigator.clipboard && window.isSecureContext) await navigator.clipboard.writeText(text);
+      else {
+        const area = document.createElement("textarea");
+        area.value = text; area.style.position = "fixed"; area.style.opacity = "0";
+        document.body.appendChild(area); area.select(); document.execCommand("copy"); area.remove();
+      }
+      showToast("Résumé copié");
+    } catch (_) { showToast("Copie impossible dans ce navigateur"); }
+  }
+
+  loadState();
+  fields.forEach(createField);
+  document.querySelector(".assumptions").addEventListener("input", event => {
+    if (event.target.matches("input[data-key]")) readInputs(event.target.dataset.key);
+  });
+  document.getElementById("matrixViews").addEventListener("click", event => {
+    const button = event.target.closest("button[data-view]");
+    if (!button) return;
+    matrixView = button.dataset.view;
+    document.querySelectorAll("#matrixViews button").forEach(item => item.setAttribute("aria-pressed", String(item === button)));
+    renderMatrix();
+  });
+  document.getElementById("copyButton").addEventListener("click", copySummary);
+  document.getElementById("resetButton").addEventListener("click", () => {
+    values = { ...calculator.DEFAULTS }; resaleHorizon = values.horizon;
+    fields.forEach(field => { document.getElementById(field.key).value = displayValue(field); });
+    saveState(); render(); showToast("Hypothèses réinitialisées");
+  });
+  render();
+})();
+</script>
+</body>
+</html>

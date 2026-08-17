@@ -1,0 +1,9 @@
+{
+  "name": "toyomega",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Simulateur Toyota Corolla vers Renault Megane E-Tech",
+  "scripts": {
+    "test": "node --test megane-calculator.test.js"
+  }
+}
