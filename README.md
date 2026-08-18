@@ -20,6 +20,8 @@ Le moteur financier se trouve dans `megane-calculator.js`. Il calcule notamment 
 
 Les montants sont exprimés en euros constants. Les résultats dépendent entièrement des hypothèses saisies et ne constituent pas un conseil financier.
 
+Les valeurs de revente sont saisies en euros absolus ; le simulateur affiche la décote qu'elles impliquent, et la matrice de sensibilité indexe la revente de la Mégane sur son prix d'achat au même taux. Voir [`ANALYSIS.md`](ANALYSIS.md) pour une revue sourcée des hypothèses par défaut et de leur poids relatif sur le résultat.
+
 ## Tests
 
 ```bash

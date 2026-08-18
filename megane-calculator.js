@@ -50,6 +50,27 @@
     return values;
   }
 
+  // Le prix d'achat et le prix de revente d'un même modèle ne sont pas
+  // indépendants : payer 2 000 € de plus aujourd'hui, c'est aussi revendre plus
+  // cher à l'horizon. On déduit le taux de revente des hypothèses saisies par
+  // l'utilisateur, sans lui en imposer un nouveau.
+  function impliedResaleRatio(input = {}) {
+    const values = validate(assumptionsWithDefaults(input));
+    return {
+      megane: values.meganePrice > 0 ? values.meganeResaleValue / values.meganePrice : 0,
+      toyota: values.toyotaSalePrice > 0 ? values.toyotaResaleValue / values.toyotaSalePrice : 0,
+    };
+  }
+
+  // Fait varier le prix de la Mégane en gardant le taux de revente constant.
+  // À utiliser partout où `meganePrice` bouge sans que l'utilisateur ait
+  // réactualisé `meganeResaleValue` (matrice de sensibilité, calcul de seuil).
+  function withMeganePrice(input = {}, price) {
+    const values = validate(assumptionsWithDefaults(input));
+    const ratio = impliedResaleRatio(values).megane;
+    return { ...values, meganePrice: price, meganeResaleValue: price * ratio };
+  }
+
   function switchingCosts(input = {}) {
     const values = validate(assumptionsWithDefaults(input));
     return values.chargingInstallation
@@ -147,15 +168,30 @@
     const factor = accumulationFactor(values.horizon, values.capitalRate);
     const capitalFactor = Math.pow(1 + values.capitalRate, values.horizon);
     const resaleGap = values.meganeResaleValue - values.toyotaResaleValue;
-    const maxMeganePrice = values.toyotaSalePrice - switchingCosts(values)
+
+    // Prix maximal en gardant la revente FIGÉE au montant saisi. Conservé pour
+    // référence : ce seuil suppose qu'on peut payer la Mégane plus cher et la
+    // revendre malgré tout au même prix, ce qui n'a pas de sens économique.
+    const maxMeganePriceFixedResale = values.toyotaSalePrice - switchingCosts(values)
       + (costs.savings * factor + resaleGap) / capitalFactor;
+
+    // Prix maximal en laissant la revente suivre le prix d'achat au taux
+    // implicite r. On résout en P :
+    //   savings*factor + P*r - toyotaResale - (P + SC - TSP)*capitalFactor = 0
+    const ratio = impliedResaleRatio(values).megane;
+    const denominator = capitalFactor - ratio;
+    const maxMeganePrice = denominator > 0
+      ? (costs.savings * factor - values.toyotaResaleValue
+         + (values.toyotaSalePrice - switchingCosts(values)) * capitalFactor) / denominator
+      : Infinity;
+
     const savingsWithoutFuel = costs.savings - costs.annualLitres * values.fuelPrice;
     const breakEvenFuelPrice = (
       futureValue(initialOutlay(values), values.horizon, values.capitalRate)
       - resaleGap
       - savingsWithoutFuel * factor
     ) / (costs.annualLitres * factor);
-    return { maxMeganePrice, breakEvenFuelPrice };
+    return { maxMeganePrice, maxMeganePriceFixedResale, breakEvenFuelPrice, resaleRatio: ratio };
   }
 
   function projection(input = {}) {
@@ -197,6 +233,8 @@
   return Object.freeze({
     DEFAULTS,
     assumptionsWithDefaults,
+    impliedResaleRatio,
+    withMeganePrice,
     switchingCosts,
     initialOutlay,
     electricityBreakdown,

@@ -69,6 +69,53 @@ test("la matrice se dégrade avec le prix de la Mégane et progresse avec l'esse
   assert.ok(higherFuel.fullResult > base.fullResult);
 });
 
+test("déduit le taux de revente des hypothèses saisies", () => {
+  const ratios = calculator.impliedResaleRatio();
+
+  closeTo(ratios.megane, 13000 / 26000);
+  closeTo(ratios.toyota, 12000 / 21000);
+  assert.equal(calculator.impliedResaleRatio({ meganePrice: 0 }).megane, 0);
+});
+
+test("indexe la revente sur le prix d'achat quand le prix varie", () => {
+  const linked = calculator.withMeganePrice({}, 30000);
+
+  assert.equal(linked.meganePrice, 30000);
+  closeTo(linked.meganeResaleValue, 15000);
+  // Au prix courant, le couplage est neutre : c'est le point d'ancrage.
+  closeTo(calculator.withMeganePrice({}, 26000).meganeResaleValue, 13000);
+});
+
+test("le couplage prix/revente fait pivoter la matrice au lieu de la translater", () => {
+  const cheapFixed = calculator.calculate({ meganePrice: 20000 }).fullResult;
+  const cheapLinked = calculator.calculate(calculator.withMeganePrice({}, 20000)).fullResult;
+  const pricyFixed = calculator.calculate({ meganePrice: 30000 }).fullResult;
+  const pricyLinked = calculator.calculate(calculator.withMeganePrice({}, 30000)).fullResult;
+
+  // Une Mégane moins chère se revend moins cher : le gain est surestimé sans couplage.
+  assert.ok(cheapLinked < cheapFixed);
+  // Une Mégane plus chère se revend plus cher : la perte est surestimée sans couplage.
+  assert.ok(pricyLinked > pricyFixed);
+  // Le résultat reste monotone décroissant avec le prix d'achat.
+  assert.ok(pricyLinked < cheapLinked);
+});
+
+test("le prix plafond tient compte de la revente indexée", () => {
+  const { maxMeganePrice, maxMeganePriceFixedResale, resaleRatio } = calculator.thresholds();
+
+  closeTo(resaleRatio, 0.5);
+  closeTo(maxMeganePriceFixedResale, 27079.16, 1);
+  closeTo(maxMeganePrice, 28158.33, 1);
+  // À ce prix, le bilan complet doit s'annuler.
+  closeTo(calculator.calculate(calculator.withMeganePrice({}, maxMeganePrice)).fullResult, 0, 0.01);
+});
+
+test("un taux de revente supérieur au coût du capital rend le plafond infini", () => {
+  const { maxMeganePrice } = calculator.thresholds({ meganeResaleValue: 26000 });
+
+  assert.equal(maxMeganePrice, Infinity);
+});
+
 test("rejette les hypothèses incohérentes", () => {
   assert.throws(() => calculator.calculate({ annualKm: -1 }), /annualKm/);
   assert.throws(
