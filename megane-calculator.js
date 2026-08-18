@@ -10,7 +10,14 @@
     toyotaSalePrice: 21000,
     annualKm: 20000,
     fuelPrice: 2.019,
-    toyotaConsumption: 5.6,
+    // Relevé sur l'ordinateur de bord du véhicule, pas une valeur catalogue.
+    // Élevé pour une Corolla hybride (4,1 L/100 en mixte sur le test de
+    // consommation réelle Motor1), cohérent avec un usage en relief : sur une
+    // montée soutenue la batterie hybride (~1 kWh utile) se vide et le moteur
+    // Atkinson travaille seul, et en descente la régénération sature presque
+    // immédiatement. Voir ANALYSIS.md § 2 pour ce que ce profil implique — et
+    // n'implique pas — côté Mégane.
+    toyotaConsumption: 5.3,
     meganeConsumption: 20,
     toyotaInsurance: 540,
     meganeInsurance: 655,
@@ -27,8 +34,19 @@
     dealerFees: 300,
     registration: 300,
     horizon: 5,
-    toyotaResaleValue: 12000,
-    meganeResaleValue: 13000,
+    // Valeurs à l'horizon, en euros constants. Ce sont les deux hypothèses les
+    // plus incertaines et les plus lourdes du modèle : ±1 500 € sur la Mégane
+    // déplace le résultat de ±1 500 €, soit plus qu'une année d'économies.
+    // Toyota : 12 500 € = −40,5 % sur 5 ans. Une hybride Toyota tient sa valeur ;
+    // c'est le poste le mieux documenté des deux.
+    toyotaResaleValue: 12500,
+    // Mégane : 9 000 € = 34,6 % du prix d'achat. Ancré sur le prix constaté des
+    // électriques de 8-9 ans à batterie NMC ~60 kWh, pas sur un taux de décote
+    // appliqué au prix 2026. À l'horizon, la Mégane pré-restylage sera une
+    // génération dépassée (restylage juillet 2026 : LFP 67 kWh, 501 km, 165 kW)
+    // et sortie de la garantie batterie 8 ans / 160 000 km.
+    // Bande défendable : 7 500 à 11 000 €. Raccourcis disponibles dans l'UI.
+    meganeResaleValue: 9000,
     capitalRate: 0,
   });
 

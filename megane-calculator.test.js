@@ -13,15 +13,34 @@ test("retrouve le scénario central actuel", () => {
   const result = calculator.calculate();
 
   closeTo(result.annualCosts.electricity.totalCost, 634.55);
-  closeTo(result.annualCosts.toyota, 3301.28);
+  closeTo(result.annualCosts.toyota, 3180.14);
   closeTo(result.annualCosts.megane, 1789.55);
-  closeTo(result.annualSavings, 1511.73);
+  closeTo(result.annualSavings, 1390.59);
   assert.equal(result.switchingCosts, 2480);
   assert.equal(result.initialOutlay, 7480);
-  closeTo(result.paybackYears, 4.95);
-  closeTo(result.cashBalance, 78.67);
-  closeTo(result.fullResult, 1078.67);
-  assert.equal(result.state, "favorable");
+  closeTo(result.paybackYears, 5.379);
+  closeTo(result.cashBalance, -527.03);
+  closeTo(result.fullResult, -4027.03);
+  assert.equal(result.state, "defavorable");
+});
+
+test("le scénario ne bascule que sur des hypothèses de revente hautes", () => {
+  // La bande documentée dans ANALYSIS.md : 7 500 à 11 000 € pour la Mégane.
+  // Aucune valeur de cette bande ne rend l'opération favorable à 5 ans.
+  for (const meganeResaleValue of [7500, 9000, 11000]) {
+    const result = calculator.calculate({ meganeResaleValue });
+    assert.ok(result.fullResult < 0, `${meganeResaleValue} € devrait rester défavorable`);
+  }
+
+  // Il faut remonter au-dessus de ~13 000 € (l'ancien défaut) pour repasser positif.
+  assert.ok(calculator.calculate({ meganeResaleValue: 13000 }).fullResult < 0);
+  assert.ok(calculator.calculate({ meganeResaleValue: 14000 }).fullResult > 0);
+});
+
+test("l'horizon long reste le seul cas favorable aux hypothèses courantes", () => {
+  assert.ok(calculator.calculate({ horizon: 5 }).fullResult < 0);
+  assert.ok(calculator.calculate({ horizon: 7 }).fullResult < 0);
+  assert.ok(calculator.calculate({ horizon: 10 }).fullResult > 0);
 });
 
 test("détaille la recharge domestique, solaire et publique", () => {
@@ -72,8 +91,8 @@ test("la matrice se dégrade avec le prix de la Mégane et progresse avec l'esse
 test("déduit le taux de revente des hypothèses saisies", () => {
   const ratios = calculator.impliedResaleRatio();
 
-  closeTo(ratios.megane, 13000 / 26000);
-  closeTo(ratios.toyota, 12000 / 21000);
+  closeTo(ratios.megane, 9000 / 26000);
+  closeTo(ratios.toyota, 12500 / 21000);
   assert.equal(calculator.impliedResaleRatio({ meganePrice: 0 }).megane, 0);
 });
 
@@ -81,9 +100,9 @@ test("indexe la revente sur le prix d'achat quand le prix varie", () => {
   const linked = calculator.withMeganePrice({}, 30000);
 
   assert.equal(linked.meganePrice, 30000);
-  closeTo(linked.meganeResaleValue, 15000);
+  closeTo(linked.meganeResaleValue, 30000 * (9000 / 26000));
   // Au prix courant, le couplage est neutre : c'est le point d'ancrage.
-  closeTo(calculator.withMeganePrice({}, 26000).meganeResaleValue, 13000);
+  closeTo(calculator.withMeganePrice({}, 26000).meganeResaleValue, 9000);
 });
 
 test("le couplage prix/revente fait pivoter la matrice au lieu de la translater", () => {
@@ -103,9 +122,11 @@ test("le couplage prix/revente fait pivoter la matrice au lieu de la translater"
 test("le prix plafond tient compte de la revente indexée", () => {
   const { maxMeganePrice, maxMeganePriceFixedResale, resaleRatio } = calculator.thresholds();
 
-  closeTo(resaleRatio, 0.5);
-  closeTo(maxMeganePriceFixedResale, 27079.16, 1);
-  closeTo(maxMeganePrice, 28158.33, 1);
+  closeTo(resaleRatio, 9000 / 26000);
+  closeTo(maxMeganePriceFixedResale, 21972.97, 1);
+  closeTo(maxMeganePrice, 19841.01, 1);
+  // Taux de revente faible => le plafond indexé est SOUS le plafond à revente figée.
+  assert.ok(maxMeganePrice < maxMeganePriceFixedResale);
   // À ce prix, le bilan complet doit s'annuler.
   closeTo(calculator.calculate(calculator.withMeganePrice({}, maxMeganePrice)).fullResult, 0, 0.01);
 });
