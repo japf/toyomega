@@ -10,7 +10,14 @@
     toyotaSalePrice: 21000,
     annualKm: 20000,
     fuelPrice: 2.019,
-    toyotaConsumption: 5.6,
+    // Relevé sur l'ordinateur de bord du véhicule, pas une valeur catalogue.
+    // Élevé pour une Corolla hybride (4,1 L/100 en mixte sur le test de
+    // consommation réelle Motor1), cohérent avec un usage en relief : sur une
+    // montée soutenue la batterie hybride (~1 kWh utile) se vide et le moteur
+    // Atkinson travaille seul, et en descente la régénération sature presque
+    // immédiatement. Voir ANALYSIS.md § 2 pour ce que ce profil implique — et
+    // n'implique pas — côté Mégane.
+    toyotaConsumption: 5.3,
     meganeConsumption: 20,
     toyotaInsurance: 540,
     meganeInsurance: 655,
@@ -27,8 +34,19 @@
     dealerFees: 300,
     registration: 300,
     horizon: 5,
-    toyotaResaleValue: 12000,
-    meganeResaleValue: 13000,
+    // Valeurs à l'horizon, en euros constants. Ce sont les deux hypothèses les
+    // plus incertaines et les plus lourdes du modèle : ±1 500 € sur la Mégane
+    // déplace le résultat de ±1 500 €, soit plus qu'une année d'économies.
+    // Toyota : 12 500 € = −40,5 % sur 5 ans. Une hybride Toyota tient sa valeur ;
+    // c'est le poste le mieux documenté des deux.
+    toyotaResaleValue: 12500,
+    // Mégane : 9 000 € = 34,6 % du prix d'achat. Ancré sur le prix constaté des
+    // électriques de 8-9 ans à batterie NMC ~60 kWh, pas sur un taux de décote
+    // appliqué au prix 2026. À l'horizon, la Mégane pré-restylage sera une
+    // génération dépassée (restylage juillet 2026 : LFP 67 kWh, 501 km, 165 kW)
+    // et sortie de la garantie batterie 8 ans / 160 000 km.
+    // Bande défendable : 7 500 à 11 000 €. Raccourcis disponibles dans l'UI.
+    meganeResaleValue: 9000,
     capitalRate: 0,
   });
 
@@ -48,6 +66,27 @@
       throw new RangeError("horizon doit être compris entre 1 et 12 ans");
     }
     return values;
+  }
+
+  // Le prix d'achat et le prix de revente d'un même modèle ne sont pas
+  // indépendants : payer 2 000 € de plus aujourd'hui, c'est aussi revendre plus
+  // cher à l'horizon. On déduit le taux de revente des hypothèses saisies par
+  // l'utilisateur, sans lui en imposer un nouveau.
+  function impliedResaleRatio(input = {}) {
+    const values = validate(assumptionsWithDefaults(input));
+    return {
+      megane: values.meganePrice > 0 ? values.meganeResaleValue / values.meganePrice : 0,
+      toyota: values.toyotaSalePrice > 0 ? values.toyotaResaleValue / values.toyotaSalePrice : 0,
+    };
+  }
+
+  // Fait varier le prix de la Mégane en gardant le taux de revente constant.
+  // À utiliser partout où `meganePrice` bouge sans que l'utilisateur ait
+  // réactualisé `meganeResaleValue` (matrice de sensibilité, calcul de seuil).
+  function withMeganePrice(input = {}, price) {
+    const values = validate(assumptionsWithDefaults(input));
+    const ratio = impliedResaleRatio(values).megane;
+    return { ...values, meganePrice: price, meganeResaleValue: price * ratio };
   }
 
   function switchingCosts(input = {}) {
@@ -147,15 +186,30 @@
     const factor = accumulationFactor(values.horizon, values.capitalRate);
     const capitalFactor = Math.pow(1 + values.capitalRate, values.horizon);
     const resaleGap = values.meganeResaleValue - values.toyotaResaleValue;
-    const maxMeganePrice = values.toyotaSalePrice - switchingCosts(values)
+
+    // Prix maximal en gardant la revente FIGÉE au montant saisi. Conservé pour
+    // référence : ce seuil suppose qu'on peut payer la Mégane plus cher et la
+    // revendre malgré tout au même prix, ce qui n'a pas de sens économique.
+    const maxMeganePriceFixedResale = values.toyotaSalePrice - switchingCosts(values)
       + (costs.savings * factor + resaleGap) / capitalFactor;
+
+    // Prix maximal en laissant la revente suivre le prix d'achat au taux
+    // implicite r. On résout en P :
+    //   savings*factor + P*r - toyotaResale - (P + SC - TSP)*capitalFactor = 0
+    const ratio = impliedResaleRatio(values).megane;
+    const denominator = capitalFactor - ratio;
+    const maxMeganePrice = denominator > 0
+      ? (costs.savings * factor - values.toyotaResaleValue
+         + (values.toyotaSalePrice - switchingCosts(values)) * capitalFactor) / denominator
+      : Infinity;
+
     const savingsWithoutFuel = costs.savings - costs.annualLitres * values.fuelPrice;
     const breakEvenFuelPrice = (
       futureValue(initialOutlay(values), values.horizon, values.capitalRate)
       - resaleGap
       - savingsWithoutFuel * factor
     ) / (costs.annualLitres * factor);
-    return { maxMeganePrice, breakEvenFuelPrice };
+    return { maxMeganePrice, maxMeganePriceFixedResale, breakEvenFuelPrice, resaleRatio: ratio };
   }
 
   function projection(input = {}) {
@@ -197,6 +251,8 @@
   return Object.freeze({
     DEFAULTS,
     assumptionsWithDefaults,
+    impliedResaleRatio,
+    withMeganePrice,
     switchingCosts,
     initialOutlay,
     electricityBreakdown,

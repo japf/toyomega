@@ -56,6 +56,7 @@
   .advanced .input-group{border-top:1px solid var(--line);border-bottom:0}
   .resale-warning{display:none;margin-top:9px;padding:9px 10px;background:var(--amber-soft);border-left:3px solid var(--amber);font-size:11px;color:#6c4b16}
   .resale-warning.visible{display:block}
+  .resale-ratios{margin-top:9px;padding:9px 10px;background:var(--blue);border-left:3px solid #7fa8c4;font-size:11px;color:#244c68;line-height:1.45}
   .results{min-width:0}
   .decision{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:22px;align-items:center;padding:22px 24px;background:var(--green);border-left:5px solid var(--forest);box-shadow:var(--shadow)}
   .decision.incertain{background:var(--amber-soft);border-color:var(--amber)}
@@ -144,7 +145,7 @@
       <details class="advanced">
         <summary>Hypothèses avancées</summary>
         <div class="input-group" id="electricityInputs"><h3>Recharge électrique</h3></div>
-        <div class="input-group" id="resaleInputs"><h3>Revente à l’horizon</h3><div class="resale-warning" id="resaleWarning"></div></div>
+        <div class="input-group" id="resaleInputs"><h3>Revente à l’horizon</h3><div class="resale-warning" id="resaleWarning"></div><div class="resale-ratios" id="resaleRatios"></div></div>
         <div class="input-group" id="capitalInputs"><h3>Coût du capital</h3></div>
       </details>
     </aside>
@@ -235,8 +236,8 @@
     { group:"electricityInputs", key:"publicElectricityPrice", label:"Tarif recharge publique", unit:"€/kWh", step:0.01, min:0, digits:2 },
     { group:"electricityInputs", key:"homeElectricityPrice", label:"Tarif marginal domicile", unit:"€/kWh", step:0.001, min:0, digits:5 },
     { group:"electricityInputs", key:"freeSolarKwh", label:"Solaire gratuit disponible", unit:"kWh/an", step:50, min:0 },
-    { group:"resaleInputs", key:"toyotaResaleValue", label:"Valeur Toyota à l’horizon", unit:"€", step:500, min:0 },
-    { group:"resaleInputs", key:"meganeResaleValue", label:"Valeur Mégane à l’horizon", unit:"€", step:500, min:0 },
+    { group:"resaleInputs", key:"toyotaResaleValue", label:"Valeur Toyota à l’horizon", unit:"€", step:500, min:0, shortcuts:[11500,12500,13500] },
+    { group:"resaleInputs", key:"meganeResaleValue", label:"Valeur Mégane à l’horizon", unit:"€", step:500, min:0, shortcuts:[7500,9000,11000] },
     { group:"capitalInputs", key:"capitalRate", label:"Rendement alternatif", unit:"%/an", step:0.5, min:0, digits:1, factor:0.01 },
   ];
 
@@ -283,7 +284,11 @@
       });
       wrapper.appendChild(shortcuts);
     }
-    document.getElementById(field.group).appendChild(wrapper);
+    const group = document.getElementById(field.group);
+    group.appendChild(wrapper);
+    // Garde la note de décote implicite en bas de son groupe, sous les champs.
+    const ratios = group.querySelector("#resaleRatios");
+    if (ratios) group.appendChild(ratios);
   }
 
   function readInputs(changedKey) {
@@ -313,7 +318,8 @@
       defavorable:["Scénario défavorable", `Avec ces hypothèses, la Mégane reste plus coûteuse à ${values.horizon} ans, reventes comprises.`],
     }[result.state];
     document.getElementById("decisionTitle").textContent = content[0];
-    document.getElementById("decisionText").textContent = `${content[1]} Point d’équilibre : Mégane à ${euro(result.thresholds.maxMeganePrice)} ou essence à ${decimal(result.thresholds.breakEvenFuelPrice, 2)} €/L.`;
+    const maxPrice = Number.isFinite(result.thresholds.maxMeganePrice) ? euro(result.thresholds.maxMeganePrice) : "aucune limite";
+    document.getElementById("decisionText").textContent = `${content[1]} Point d’équilibre : Mégane à ${maxPrice} (revente indexée sur le prix d’achat) ou essence à ${decimal(result.thresholds.breakEvenFuelPrice, 2)} €/L.`;
     document.getElementById("decisionResult").textContent = signedEuro(result.fullResult);
     document.getElementById("decisionHorizon").textContent = `bilan complet à ${values.horizon} ans`;
   }
@@ -384,7 +390,10 @@
     const header = `<thead><tr><th>Prix Mégane</th>${fuelSteps.map(fuel => `<th class="${fuel===nearestFuel?"current":""}">${decimal(fuel,2)} €</th>`).join("")}</tr></thead>`;
     const body = priceSteps.map(price => {
       const cells = fuelSteps.map(fuel => {
-        const result = calculator.calculate({ ...values, meganePrice:price, fuelPrice:fuel });
+        // La revente suit le prix d'achat au taux implicite des hypothèses :
+        // sans ce couplage, la colonne « Mégane à 22 000 € » et la colonne
+        // « Mégane à 30 000 € » se revendraient au même prix.
+        const result = calculator.calculate({ ...calculator.withMeganePrice(values, price), fuelPrice:fuel });
         const active = price===nearestPrice && fuel===nearestFuel ? " active" : "";
         if (matrixView === "payback") return `<td class="${matrixCellClass(result)}${active}"><strong>${Number.isFinite(result.paybackYears)?`${decimal(result.paybackYears)} ans`:"jamais"}</strong><small>${euro(result.annualSavings)}/an</small></td>`;
         const amount = matrixView === "cash" ? result.cashBalance : result.fullResult;
@@ -393,7 +402,8 @@
       return `<tr><th class="${price===nearestPrice?"current":""}">${euro(price)}</th>${cells}</tr>`;
     }).join("");
     document.getElementById("matrix").innerHTML = header + `<tbody>${body}</tbody>`;
-    document.getElementById("matrixContext").textContent = `Horizon ${values.horizon} ans · vente Toyota ${euro(values.toyotaSalePrice)} · coûts additionnels ${euro(calculator.switchingCosts(values))}`;
+    const ratios = calculator.impliedResaleRatio(values);
+    document.getElementById("matrixContext").textContent = `Horizon ${values.horizon} ans · vente Toyota ${euro(values.toyotaSalePrice)} · coûts additionnels ${euro(calculator.switchingCosts(values))} · revente Mégane indexée à ${decimal(ratios.megane * 100)} % du prix d’achat`;
     document.getElementById("matrixLegend").innerHTML = matrixView === "payback"
       ? '<span><i style="background:#cfe7db"></i>≤ 5 ans</span><span><i style="background:#dbe8ef"></i>avant l’horizon</span><span><i style="background:#f6e8ca"></i>jusqu’à 10 ans</span><span><i style="background:#f2dcd6"></i>plus de 10 ans</span>'
       : '<span><i style="background:#cfe7db"></i>gain ≥ 2 000 €</span><span><i style="background:#dbe8ef"></i>gain positif</span><span><i style="background:#f6e8ca"></i>perte < 2 000 €</span><span><i style="background:#f2dcd6"></i>perte ≥ 2 000 €</span>';
@@ -404,6 +414,18 @@
     const stale = resaleHorizon !== values.horizon;
     warning.classList.toggle("visible", stale);
     warning.textContent = stale ? `Valeurs définies pour ${resaleHorizon} ans : à actualiser pour ${values.horizon} ans.` : "";
+    renderResaleRatios();
+  }
+
+  // Les deux valeurs de revente sont saisies en euros absolus, ce qui masque le
+  // taux de décote qu'elles impliquent — et donc l'asymétrie entre les deux
+  // véhicules. On l'affiche pour que l'hypothèse soit visible et discutable.
+  function renderResaleRatios() {
+    const ratios = calculator.impliedResaleRatio(values);
+    const node = document.getElementById("resaleRatios");
+    if (!node) return;
+    const pct = value => `${decimal(value * 100)} %`;
+    node.textContent = `Décote implicite sur ${values.horizon} ans : Toyota −${pct(1 - ratios.toyota)}, Mégane −${pct(1 - ratios.megane)}. La matrice indexe la revente Mégane sur ${pct(ratios.megane)} du prix d’achat.`;
   }
 
   function render() {
